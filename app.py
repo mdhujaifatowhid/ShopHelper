@@ -87,10 +87,11 @@ When a customer wants to place an order, collect the following info step by step
 
 After collecting all 5 pieces of info, show a clear summary and ask: "Would you like to confirm your order? (Yes / No)"
 
-When the customer confirms, reply with a JSON block in this EXACT format (inside ```order``` code block):
-  ```order
-  {"name":"...","phone":"...","address":"...","product":"...","size":"..."}
-  ```
+CRITICAL INSTRUCTION - When the customer says Yes/হ্যাঁ/confirm/ok to confirm the order, you MUST include this EXACT block in your response (replace ... with actual values):
+```order
+{"name":"...","phone":"...","address":"...","product":"...","size":"..."}
+```
+This block is MANDATORY when order is confirmed. Do NOT skip it. Do NOT change the format. Place it at the start of your response before any other text.
 Then say the order has been placed successfully and provide a friendly confirmation message.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -148,9 +149,13 @@ def chat():
         order_data  = extract_order(reply)
         if order_data:
             order_saved = save_order(order_data)
+            print(f"[ORDER] data={order_data} saved={order_saved}")
+
+        # Remove the ```order...``` block from reply shown to user
+        clean_reply = re.sub(r"```order[\s\S]*?```", "", reply).strip()
 
         return jsonify({
-            "reply": reply,
+            "reply": clean_reply,
             "order_placed": bool(order_data),
             "order_saved": order_saved
         })
