@@ -8,8 +8,10 @@ CORS(app)
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-# ── Google Apps Script webhook URL (paste yours after deploying) ──
-APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "https://script.google.com/macros/s/AKfycbzE-rol039ybfNc2DPp0xW1Pl9BLyizQF7KwY3DZJuW4bDdNiVvP8zWU_u3xEZxJejlCg/exec")
+# ── Config ──────────────────────────────────────────────────────
+APPS_SCRIPT_URL    = os.environ.get("APPS_SCRIPT_URL", "")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # ── Main ShopHelper system prompt ────────────────────────────────
 SYSTEM_PROMPT = """You are "ShopHelper", a friendly and enthusiastic AI assistant for TrendHive Fashion — a trendy Fashion & Clothing e-commerce store.
@@ -106,16 +108,50 @@ PERSONALITY
 Always end your reply by asking if there is anything else you can help with."""
 
 
-def save_order(order_data: dict):
-    """Send order to Google Apps Script → Sheet + WhatsApp."""
+def send_telegram(order_data: dict):
+    """Send Telegram notification directly."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("Telegram not configured")
+        return False
+    try:
+        msg = (
+            f"🛍️ New Order!\n"
+            f"👤 Name: {order_data.get('name')}\n"
+            f"📞 Phone: {order_data.get('phone')}\n"
+            f"📍 Address: {order_data.get('address')}\n"
+            f"👗 Product: {order_data.get('product')}\n"
+            f"📐 Size: {order_data.get('size')}"
+        )
+        r = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": msg},
+            timeout=10
+        )
+        print(f"[TELEGRAM] status={r.status_code} response={r.text}")
+        return r.status_code == 200
+    except Exception as e:
+        print(f"[TELEGRAM ERROR] {e}")
+        return False
+
+
+def save_to_sheet(order_data: dict):
+    """Send order to Google Apps Script → Sheet."""
     if not APPS_SCRIPT_URL:
         return False
     try:
         r = requests.post(APPS_SCRIPT_URL, json=order_data, timeout=10)
+        print(f"[SHEET] status={r.status_code}")
         return r.status_code == 200
     except Exception as e:
-        print("Order webhook error:", e)
+        print(f"[SHEET ERROR] {e}")
         return False
+
+
+def save_order(order_data: dict):
+    """Send Telegram + save to sheet."""
+    telegram_ok = send_telegram(order_data)
+    sheet_ok = save_to_sheet(order_data)
+    return telegram_ok or sheet_ok
 
 
 def extract_order(text: str):
